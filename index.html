@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quý Phi Đại Náo Tử Cấm Thành</title>
+<style>
+  :root { --gold:#ffd54f; --red:#c62828; --pink:#ff4081; }
+  * { box-sizing:border-box; user-select:none; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#1a0a0f; font-family:"Segoe UI",Roboto,Arial,sans-serif; color:#fff; }
+  canvas { display:block; }
+  .stroke { text-shadow:-2px -2px 0 #5a0f1c,2px -2px 0 #5a0f1c,-2px 2px 0 #5a0f1c,2px 2px 0 #5a0f1c,0 4px 8px rgba(0,0,0,.4); }
+
+  #hud { position:fixed; inset:0; pointer-events:none; display:none; }
+  body.playing #hud { display:block; }
+  #uy { position:absolute; top:16px; left:16px; width:min(320px,40vw); font-weight:800; font-size:18px; }
+  .bar { height:20px; margin-top:4px; border:3px solid #5a0f1c; border-radius:12px; background:#2b0d14; overflow:hidden; }
+  #uyfill { display:block; height:100%; width:50%; background:linear-gradient(90deg,#ffca28,#ff7043); transition:width .25s; }
+  #score { position:absolute; top:12px; right:20px; font-size:38px; font-weight:900; }
+  #combo { position:absolute; top:76px; left:0; right:0; text-align:center; opacity:0; transition:opacity .2s; }
+  #combo.on { opacity:1; }
+  #cnum { display:block; font-size:54px; font-weight:900; color:var(--gold); }
+  #ctitle { display:block; font-size:24px; font-style:normal; font-weight:800; color:#ff80ab; }
+  #combo.pulse #cnum { animation:pulse .25s; }
+  @keyframes pulse { 0%{transform:scale(1.5)} 100%{transform:scale(1)} }
+  #prog { position:absolute; left:50%; bottom:46px; width:min(520px,70vw); height:10px; transform:translateX(-50%); background:rgba(0,0,0,.45); border-radius:6px; }
+  #pfill { position:absolute; left:0; top:0; bottom:0; width:0; background:var(--gold); border-radius:6px; }
+  #pme,#pemp { position:absolute; top:-20px; font-size:24px; transform:translateX(-50%); }
+  #pemp { left:100%; }
+  #hint { position:absolute; bottom:10px; left:0; right:0; text-align:center; font-size:13px; opacity:.85; text-shadow:0 1px 3px #000; }
+  #vignette { position:fixed; inset:0; pointer-events:none; opacity:0; transition:opacity .5s;
+    background:radial-gradient(ellipse at center,transparent 45%,rgba(255,64,129,.55) 100%); }
+  body.hot #vignette { opacity:1; animation:throb .6s infinite alternate; }
+  @keyframes throb { from{filter:brightness(1)} to{filter:brightness(1.5)} }
+  #flash { position:fixed; inset:0; pointer-events:none; background:#e53935; opacity:0; }
+  #flash.on { animation:flash .5s; }
+  @keyframes flash { 0%{opacity:.55} 100%{opacity:0} }
+
+  .pop { position:fixed; transform:translate(-50%,-50%); font-weight:900; font-size:30px; pointer-events:none; white-space:nowrap; color:var(--gold); animation:rise 1s forwards; }
+  .pop.bad { color:#ff5252; }
+  .pop.big { font-size:46px; color:#ff80ab; }
+  @keyframes rise { 0%{transform:translate(-50%,-50%) scale(.4);opacity:0} 15%{transform:translate(-50%,-70%) scale(1.3);opacity:1} 100%{transform:translate(-50%,-190%) scale(1);opacity:0} }
+
+  .overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; text-align:center; padding:24px;
+    background:radial-gradient(ellipse at center,rgba(120,20,40,.92),rgba(20,4,10,.97)); z-index:10; }
+  .overlay.show { display:flex; }
+  .overlay h1 { font-size:clamp(30px,6vw,60px); margin:0 0 8px; color:var(--gold); }
+  .overlay h2 { margin:0 0 16px; color:#ff80ab; }
+  .overlay p { max-width:640px; line-height:1.5; font-size:18px; margin:6px 0; }
+  .who { color:var(--gold); font-weight:800; }
+  button { margin-top:22px; padding:14px 38px; font-size:20px; font-weight:800; color:#5a0f1c; background:linear-gradient(#ffe082,#ffb300); border:3px solid #5a0f1c; border-radius:30px; cursor:pointer; }
+  button:hover { filter:brightness(1.1); }
+  .keys { display:grid; grid-template-columns:auto auto; gap:4px 18px; text-align:left; margin-top:14px; font-size:15px; opacity:.9; }
+  .keys b { color:var(--gold); }
+  #dialogue { font-size:24px; min-height:110px; }
+  #end.dark { background:#000; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="vignette"></div>
+<div id="flash"></div>
+<div id="hud">
+  <div id="uy" class="stroke">👑 Uy Nghi <span id="uynum"></span><div class="bar"><i id="uyfill"></i></div></div>
+  <div id="score" class="stroke">0</div>
+  <div id="combo" class="stroke"><b id="cnum"></b><em id="ctitle"></em></div>
+  <div id="prog"><i id="pfill"></i><span id="pme">👸</span><span id="pemp">🤴</span></div>
+  <div id="hint">Chuột trái/phải: tát trái/phải · A/D: lách · W/S: nhanh/chậm · Space: lướt · Chuột: xoay camera · H: nhãn · M: nhạc</div>
+</div>
+
+<div id="intro" class="overlay show">
+  <h1 class="stroke">Quý Phi Đại Náo<br>Tử Cấm Thành</h1>
+  <h2>Tát đúng người – né đúng chủ – sống sót giữa hậu cung.</h2>
+  <div id="dialogue"></div>
+  <button id="next">Tiếp ▶</button>
+  <div class="keys">
+    <span><b>Chuột trái / phải</b></span><span>Tát bên trái / bên phải</span>
+    <span><b>A / D</b></span><span>Lách trái / phải</span>
+    <span><b>W / S</b></span><span>Chạy nhanh / chậm</span>
+    <span><b>Space</b></span><span>Lướt (bất tử ngắn)</span>
+    <span><b>Chuột</b></span><span>Xoay camera</span>
+  </div>
+</div>
+
+<div id="pause" class="overlay">
+  <h1 class="stroke">Tạm dừng</h1>
+  <p>Bấm để tiếp tục dạo hậu cung.</p>
+  <button id="resume">Tiếp tục</button>
+</div>
+
+<div id="end" class="overlay">
+  <h1 id="endTitle" class="stroke"></h1>
+  <div id="endLines"></div>
+  <h2 id="endScore"></h2>
+  <button onclick="location.reload()">Chơi lại</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ───────────────────────── cấu hình ─────────────────────────
+const LEN = 320;            // chiều dài đường tới Hoàng thượng
+const HALF = 5.5;           // nửa bề rộng lối đi
+const CROSS = [-45, -115, -185, -255]; // các giao lộ
+const $ = id => document.getElementById(id);
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const inGap = (z, m = 0) => CROSS.some(c => Math.abs(z - c) < 4 + m);
+
+const TYPES = {
+  maid:     { name: 'Cung nữ',          slap: true,  score: 100, uy: 2, r: .6,  robe: 0x2ec4a6, trim: 0xffffff, hat: 'maid',     scale: 1 },
+  eunuch:   { name: 'Thái giám',        slap: true,  score: 150, uy: 3, r: .6,  robe: 0x2d4a8a, trim: 0xb0bec5, hat: 'eunuch',   scale: 1.05 },
+  consort:  { name: 'Phi tần cấp thấp', slap: true,  score: 300, uy: 4, r: .65, robe: 0x9c4dcc, trim: 0xff8fab, hat: 'consort',  scale: 1.05 },
+  queen:    { name: 'HOÀNG HẬU',        slap: false, hitUy: 15, crashUy: 25, r: 1.1, robe: 0xe6a100, trim: 0xd32f2f, hat: 'queen',    scale: 1.3 },
+  princess: { name: 'CÔNG CHÚA',        slap: false, hitUy: 10, crashUy: 10, r: .6,  robe: 0xff7eb6, trim: 0xffffff, hat: 'princess', scale: .75 },
+};
+const TIERS = { 3: 'Tiểu Chủ Uy Nghi', 5: 'Quý Phi Ra Oai', 10: 'Hậu Cung Chấn Động', 20: 'Uy Chấn Lục Cung' };
+
+// ───────────────────────── renderer / scene ─────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+const SKY = 0xbfe3f5;
+scene.background = new THREE.Color(SKY);
+scene.fog = new THREE.Fog(SKY, 40, 130);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, .1, 220);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x88aa77, 1.0));
+const sun = new THREE.DirectionalLight(0xfff2cc, 1.3);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 80 });
+scene.add(sun, sun.target);
+
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+// ───────────────────────── helper dựng hình ─────────────────────────
+const mats = new Map();
+const mat = c => { if (!mats.has(c)) mats.set(c, new THREE.MeshLambertMaterial({ color: c })); return mats.get(c); };
+const M = (geo, c, x = 0, y = 0, z = 0) => {
+  const m = new THREE.Mesh(geo, mat(c));
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  return m;
+};
+const sph = (r, ws = 12, hs = 8) => new THREE.SphereGeometry(r, ws, hs);
+const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+const cyl = (rt, rb, h, s = 12) => new THREE.CylinderGeometry(rt, rb, h, s);
+
+function makeHat(kind) {
+  const h = new THREE.Group();
+  const cap = c => M(new THREE.SphereGeometry(.58, 16, 10, 0, Math.PI * 2, 0, Math.PI * .42), c);
+  const bun = (c, x, y) => M(sph(.2, 10, 8), c, x, y, 0);
+  switch (kind) {
+    case 'maid':
+      h.add(cap(0x1b1b1b), bun(0x1b1b1b, .5, .4), bun(0x1b1b1b, -.5, .4), M(sph(.12, 8, 6), 0xff8fab, .52, .56, 0));
+      break;
+    case 'eunuch':
+      h.add(M(cyl(.38, .48, .36, 14), 0x222222, 0, .52, 0), M(sph(.08, 8, 6), 0xd32f2f, 0, .75, 0));
+      break;
+    case 'consort':
+      h.add(cap(0x1b1b1b), M(box(1.5, .1, .4), 0x1b1b1b, 0, .6, 0),
+        M(sph(.14, 8, 6), 0xff80ab, .72, .66, 0), M(sph(.14, 8, 6), 0xffee58, -.72, .66, 0), M(sph(.1, 8, 6), 0xffd54f, 0, .68, 0));
+      break;
+    case 'queen':
+      h.add(cap(0x1b1b1b), M(cyl(.55, .4, .45, 12), 0xffc107, 0, .55, 0), M(box(1.7, .36, .12), 0xffc107, 0, .9, 0),
+        M(sph(.1, 8, 6), 0xd32f2f, .7, .9, .08), M(sph(.1, 8, 6), 0xd32f2f, -.7, .9, .08), M(sph(.12, 8, 6), 0x29b6f6, 0, .9, .1));
+      break;
+    case 'princess':
+      h.add(cap(0x3b2a2a), bun(0xff80ab, .5, .38), bun(0xff80ab, -.5, .38), M(sph(.1, 8, 6), 0xff1744, .52, .55, 0), M(sph(.1, 8, 6), 0xff1744, -.52, .55, 0));
+      break;
+    case 'player':
+      h.add(cap(0x1b1b1b), M(box(1.4, .18, .3), 0xffc107, 0, .62, 0),
+        M(sph(.11, 8, 6), 0xe91e63, .62, .66, .05), M(sph(.11, 8, 6), 0xe91e63, -.62, .66, .05), M(sph(.14, 8, 6), 0xff1744, 0, .7, .05),
+        M(cyl(.025, .025, .45, 6), 0xffc107, .7, .38, 0), M(cyl(.025, .025, .45, 6), 0xffc107, -.7, .38, 0),
+        M(sph(.2, 10, 8), 0xff4081, .55, .3, 0));
+      break;
+    case 'emperor':
+      h.add(cap(0x1b1b1b), M(cyl(.4, .5, .4, 14), 0xffc107, 0, .52, 0), M(box(1, .08, .55), 0x1b1b1b, 0, .78, 0));
+      break;
+  }
+  h.position.y = 1.65;
+  return h;
+}
+
+// Quay mặt về +Z (NPC) hoặc -Z (người chơi, f = -1)
+function makeChar(o, f = 1) {
+  const g = new THREE.Group();
+  const rig = new THREE.Group();
+  g.add(rig);
+  const skin = 0xffe0bd;
+  rig.add(M(cyl(.35, .6, 1.2), o.robe, 0, .6, 0));
+  rig.add(M(cyl(.46, .48, .12), o.trim, 0, .85, 0));
+  rig.add(M(cyl(.62, .62, .06), o.trim, 0, .05, 0));
+  const head = M(sph(.55, 16, 12), skin, 0, 1.65, 0);
+  rig.add(head);
+  rig.add(M(sph(.07, 8, 6), 0x222222, .18, 1.62, .5 * f), M(sph(.07, 8, 6), 0x222222, -.18, 1.62, .5 * f));
+  rig.add(M(sph(.07, 8, 6), 0xff8a80, .34, 1.5, .42 * f), M(sph(.07, 8, 6), 0xff8a80, -.34, 1.5, .42 * f));
+  const arms = [];
+  for (const s of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(s * .45, 1.15, 0);
+    pivot.rotation.order = 'YXZ';
+    pivot.add(M(cyl(.14, .1, .6), o.robe, 0, -.3, 0), M(sph(.12, 8, 6), skin, 0, -.64, 0));
+    rig.add(pivot);
+    arms.push(pivot);
+  }
+  const hat = makeHat(o.hat);
+  rig.add(hat);
+  g.scale.setScalar(o.scale || 1);
+  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
+  g.userData = { rig, hat, armL: arms[0], armR: arms[1] };
+  return g;
+}
+
+const labelMats = {};
+function labelSprite(key) {
+  if (!labelMats[key]) {
+    const t = TYPES[key];
+    const c = document.createElement('canvas');
+    c.width = 320; c.height = 80;
+    const x = c.getContext('2d');
+    x.fillStyle = t.slap ? 'rgba(46,160,90,.92)' : 'rgba(210,40,50,.95)';
+    x.beginPath(); x.roundRect(4, 4, 312, 72, 30); x.fill();
+    x.fillStyle = '#fff'; x.font = 'bold 34px Segoe UI, Arial'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText((t.slap ? 'TÁT · ' : 'NÉ · ') + t.name, 160, 42);
+    labelMats[key] = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthTest: false });
+  }
+  const s = new THREE.Sprite(labelMats[key]);
+  s.scale.set(3.2, .8, 1);
+  s.renderOrder = 10;
+  return s;
+}
+
+// ───────────────────────── bản đồ Ngự Hoa Viên ─────────────────────────
+function tileTexture(a, b, rx, ry) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const x = c.getContext('2d');
+  x.fillStyle = a; x.fillRect(0, 0, 64, 64);
+  x.fillStyle = b; x.fillRect(0, 0, 32, 32); x.fillRect(32, 32, 32, 32);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(rx, ry);
+  return t;
+}
+function plane(w, d, map, color, x, y, z) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshLambertMaterial(map ? { map } : { color }));
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, y, z);
+  m.receiveShadow = true;
+  scene.add(m);
+  return m;
+}
+
+function buildWorld() {
+  plane(500, LEN + 240, null, 0x7cc36a, 0, -.02, -LEN / 2 - 40);
+  plane(14, LEN + 60, tileTexture('#d9c9a2', '#cdbb90', 7, (LEN + 60) / 2), 0, 0, 0, -LEN / 2 - 10);
+  for (const c of CROSS) plane(160, 8, tileTexture('#d2c196', '#c6b487', 80, 4), 0, 0, .01, c);
+
+  // lan can đỏ, chừa khoảng trống ở giao lộ
+  const rail = (z0, z1) => {
+    const len = z0 - z1, mid = (z0 + z1) / 2;
+    for (const s of [-1, 1]) {
+      const r = M(box(.4, .8, len), 0xb71c1c, s * 7.2, .4, mid);
+      const top = M(box(.5, .1, len), 0xffc107, s * 7.2, .85, mid);
+      r.receiveShadow = true;
+      scene.add(r, top);
+    }
+  };
+  let prev = 10;
+  for (const c of [...CROSS].sort((a, b) => b - a)) { rail(prev, c + 4); prev = c - 4; }
+  rail(prev, -LEN - 6);
+
+  // đèn lồng
+  for (let z = -8; z > -LEN - 5; z -= 16) {
+    if (inGap(z, 1)) continue;
+    for (const s of [-1, 1]) {
+      scene.add(M(cyl(.07, .07, 3), 0x5d4037, s * 7.2, 1.5, z));
+      const l = M(sph(.45, 10, 8), 0xff3d3d, s * 7.2, 3.2, z);
+      l.material = new THREE.MeshLambertMaterial({ color: 0xff3d3d, emissive: 0xaa1111 });
+      scene.add(l);
+    }
+  }
+
+  // cây hoa mai / đào
+  for (let i = 0; i < 130; i++) {
+    const z = -rand(-10, LEN + 20), s = Math.random() < .5 ? -1 : 1, x = s * rand(9.5, 30);
+    if (inGap(z, 6)) continue;
+    const t = new THREE.Group();
+    t.add(M(cyl(.2, .3, 2.4, 7), 0x6d4c41, 0, 1.2, 0));
+    const col = pick([0xffb7c5, 0xffb7c5, 0xff8fab, 0xffffff]);
+    t.add(M(sph(1.5, 8, 6), col, 0, 3.2, 0), M(sph(1.1, 8, 6), col, .9, 2.8, .3), M(sph(1, 8, 6), col, -.8, 3.1, -.4));
+    t.position.set(x, 0, z);
+    scene.add(t);
+  }
+  // ao sen
+  for (let i = 0; i < 9; i++) {
+    const z = -rand(30, LEN - 20), s = Math.random() < .5 ? -1 : 1;
+    if (inGap(z, 10)) continue;
+    const p = new THREE.Mesh(new THREE.CircleGeometry(rand(3, 5), 24), new THREE.MeshLambertMaterial({ color: 0x4fc3f7 }));
+    p.rotation.x = -Math.PI / 2;
+    p.position.set(s * rand(14, 24), .02, z);
+    scene.add(p);
+  }
+  // đình
+  for (let i = 0; i < 8; i++) {
+    const z = -rand(20, LEN - 20), s = i % 2 ? -1 : 1, x = s * rand(13, 18);
+    if (inGap(z, 12)) continue;
+    const g = new THREE.Group();
+    for (const px of [-1.8, 1.8]) for (const pz of [-1.8, 1.8]) g.add(M(cyl(.18, .18, 3, 8), 0xc62828, px, 1.5, pz));
+    g.add(M(box(4.6, .3, 4.6), 0x8d6e63, 0, .15, 0));
+    const roof = M(new THREE.ConeGeometry(3.8, 2, 4), 0xffb300, 0, 4, 0);
+    roof.rotation.y = Math.PI / 4;
+    g.add(roof);
+    g.position.set(x, 0, z);
+    scene.add(g);
+  }
+  // cổng Dưỡng Tâm Điện + ngai vàng
+  const gz = -LEN - 6;
+  for (const s of [-1, 1]) scene.add(M(cyl(.7, .8, 9, 12), 0xb71c1c, s * 8, 4.5, gz));
+  scene.add(M(box(18, 1.4, 1.6), 0xb71c1c, 0, 9.5, gz), M(box(7, 1, 1.7), 0xffc107, 0, 9.5, gz));
+  scene.add(M(box(16, .6, 10), 0x8d6e63, 0, .3, gz - 7), M(box(10, .6, 6), 0xffc107, 0, .9, gz - 9));
+  const emperor = makeChar({ robe: 0xffc107, trim: 0xd32f2f, hat: 'emperor', scale: 1.2 }, 1);
+  emperor.position.set(0, 1.2, gz - 9);
+  scene.add(emperor);
+  return emperor;
+}
+const emperor = buildWorld();
+
+// ───────────────────────── người chơi ─────────────────────────
+const player = makeChar({ robe: 0xd81b60, trim: 0xffc107, hat: 'player', scale: 1.1 }, -1);
+scene.add(player);
+const P = { x: 0, z: 0, fall: 0, inv: 0, dashT: 0, dashCd: 0, dashDir: 0, slapT: -1, slapSide: 1, slapCd: 0 };
+
+// ───────────────────────── NPC ─────────────────────────
+const npcs = [];
+function spawnNPC(key, x, z, o = {}) {
+  const t = TYPES[key];
+  const mesh = makeChar(t, 1);
+  const label = labelSprite(key);
+  label.position.y = 2.9;
+  mesh.add(label);
+  mesh.visible = false;
+  scene.add(mesh);
+  const n = { key, t, mesh, label, x, z, vx: o.vx || 0, vz: o.vz || 0, state: 'idle', tm: 0, active: false, dead: false, ph: rand(0, 6), dirx: 0, cross: !!o.cross };
+  npcs.push(n);
+  return n;
+}
+function behave(key, x, z) {
+  switch (key) {
+    case 'maid':     return Math.random() < .6 ? { vx: pick([-1, 1]) * rand(1.6, 2.6), cross: true } : { vz: rand(.5, 1.5) };
+    case 'eunuch':   return { vz: rand(1.2, 2.2) };
+    case 'consort':  return Math.random() < .5 ? { vz: -rand(.8, 1.6) } : { vx: pick([-1, 1]) * rand(.8, 1.4), cross: true };
+    case 'queen':    return { vz: 1.5 };
+    case 'princess': return { vx: pick([-1, 1]) * rand(3.5, 5), cross: true };
+  }
+}
+function populate() {
+  const place = (key, z) => {
+    const x = rand(-HALF + .5, HALF - .5);
+    const n = spawnNPC(key, x, z, behave(key));
+    if (key === 'queen') for (const s of [-1, 1]) spawnNPC('maid', x + s * 1.8, z - 2.5, { vz: 1.5 });
+    return n;
+  };
+  let z = -22, queenDone = false;
+  while (z > -LEN + 15) {
+    const t = -z / LEN;
+    let key;
+    if (!queenDone && z < -45) { key = 'queen'; queenDone = true; }
+    else if (t < .15) key = pick(['maid', 'maid', 'eunuch']);
+    else {
+      const r = Math.random(), q = .07 + .1 * t, pr = .09 + .07 * t;
+      key = r < q ? 'queen' : r < q + pr ? 'princess' : pick(['maid', 'maid', 'maid', 'eunuch', 'consort', 'consort']);
+    }
+    place(key, z);
+    z -= (15 - 9 * t) * rand(.8, 1.2);
+  }
+}
+populate();
+
+// ───────────────────────── hạt hoa mai ─────────────────────────
+const flowers = [];
+const flowerGeo = new THREE.SphereGeometry(.12, 6, 4);
+function burst(x, y, z) {
+  for (let i = 0; i < 12; i++) {
+    const m = new THREE.Mesh(flowerGeo, mat(pick([0xffb7c5, 0xffffff, 0xff80ab])));
+    m.position.set(x, y, z);
+    scene.add(m);
+    flowers.push({ m, vx: rand(-4, 4), vy: rand(2, 6), vz: rand(-3, 3), life: 1 });
+  }
+}
+
+// ───────────────────────── âm thanh ─────────────────────────
+let AC, master, musicOn = true;
+function initAudio() {
+  if (AC) return;
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  master = AC.createGain(); master.gain.value = .6; master.connect(AC.destination);
+  const scale = [262, 294, 330, 392, 440, 523, 587, 659];
+  let step = 0;
+  setInterval(() => {
+    if (!musicOn || state !== 'play') return;
+    step++;
+    if (Math.random() < .7) tone(pick(scale), .35, 'triangle', .05);
+    if (step % 4 === 0) tone(pick([131, 147, 196]), .6, 'sine', .08);
+  }, 230);
+}
+function tone(f, dur, type = 'sine', vol = .2, slide = null, delay = 0) {
+  if (!AC) return;
+  const t = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + .02);
+}
+function noise(dur, vol, freq) {
+  if (!AC) return;
+  const n = AC.sampleRate * dur, buf = AC.createBuffer(1, n, AC.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+  s.buffer = buf; f.type = 'bandpass'; f.frequency.value = freq;
+  g.gain.setValueAtTime(vol, AC.currentTime); g.gain.exponentialRampToValueAtTime(.001, AC.currentTime + dur);
+  s.connect(f); f.connect(g); g.connect(master); s.start();
+}
+const sfx = {
+  slap()   { noise(.09, .7, 1800); tone(170, .13, 'square', .25, 60); },
+  whiff()  { noise(.14, .12, 3200); },
+  scream() { tone(rand(800, 1100), .3, 'square', .1, rand(1300, 1800)); },
+  oof()    { tone(420, .4, 'sawtooth', .28, 110); noise(.2, .3, 400); },
+  tier()   { [523, 659, 784, 1047].forEach((f, i) => tone(f, .22, 'triangle', .22, null, i * .08)); },
+  win()    { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, .35, 'triangle', .22, null, i * .12)); },
+  lose()   { [392, 330, 262, 196].forEach((f, i) => tone(f, .4, 'sawtooth', .18, null, i * .18)); },
+};
+
+// ───────────────────────── trạng thái game ─────────────────────────
+let state = 'intro', paused = false, showLabels = true;
+let score = 0, uy = 50, combo = 0, shake = 0, camYaw = 0, camPitch = 0, time = 0;
+const keys = new Set();
+const mult = () => combo >= 20 ? 4 : combo >= 10 ? 3 : combo >= 5 ? 2 : combo >= 3 ? 1.5 : 1;
+
+function popup(text, pos, cls = '') {
+  const v = new THREE.Vector3(pos.x, pos.y, pos.z).project(camera);
+  if (v.z > 1) return;
+  const d = document.createElement('div');
+  d.className = 'pop stroke ' + cls;
+  d.textContent = text;
+  d.style.left = ((v.x * .5 + .5) * innerWidth) + 'px';
+  d.style.top = ((-v.y * .5 + .5) * innerHeight) + 'px';
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 1000);
+}
+function centerPop(text, cls = 'big') {
+  const d = document.createElement('div');
+  d.className = 'pop stroke ' + cls;
+  d.textContent = text;
+  d.style.left = '50%'; d.style.top = '34%';
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 1000);
+}
+
+function refreshHUD() {
+  uy = Math.max(0, Math.min(100, uy));
+  $('uyfill').style.width = uy + '%';
+  $('uynum').textContent = Math.round(uy);
+  $('score').textContent = Math.round(score).toLocaleString('vi-VN');
+  const c = $('combo');
+  c.classList.toggle('on', combo > 0);
+  $('cnum').textContent = 'COMBO x' + combo;
+  const tier = Object.keys(TIERS).map(Number).filter(k => combo >= k).pop();
+  $('ctitle').textContent = tier ? TIERS[tier] + ' · điểm x' + mult() : '';
+  c.classList.remove('pulse'); void c.offsetWidth; c.classList.add('pulse');
+  document.body.classList.toggle('hot', combo >= 10);
+}
+
+function breakCombo() { combo = 0; refreshHUD(); }
+
+function slap(side) {
+  if (state !== 'play' || paused || P.slapCd > 0 || P.fall > 0) return;
+  P.slapT = 0; P.slapSide = side; P.slapCd = .35;
+  let hit = false;
+  for (const n of npcs) {
+    if (n.dead || n.state !== 'idle' || !n.active) continue;
+    const dz = n.z - P.z, dx = n.x - P.x;
+    const inZ = dz > -3.8 && dz < 1;
+    const inX = side > 0 ? (dx < .4 && dx > -3.6) : (dx > -.4 && dx < 3.6);
+    if (inZ && inX) { hitNPC(n, side); hit = true; }
+  }
+  if (!hit) sfx.whiff();
+}
+
+function hitNPC(n, side) {
+  n.state = 'hit'; n.tm = 0; n.dirx = side > 0 ? -1 : 1;
+  const p = { x: n.x, y: 2.4, z: n.z };
+  burst(n.x, 1.6, n.z);
+  sfx.slap();
+  shake = Math.max(shake, .25);
+  if (n.t.slap) {
+    combo++;
+    const pts = Math.round(n.t.score * mult());
+    score += pts; uy += n.t.uy;
+    popup('CHÁT! +' + pts, p);
+    if (n.key === 'maid') sfx.scream();
+    if (TIERS[combo]) { centerPop(TIERS[combo]); sfx.tier(); shake = .5; }
+    refreshHUD();
+  } else {
+    uy -= n.t.hitUy; combo = 0;
+    popup('TÁT NHẦM!', p, 'bad');
+    sfx.oof();
+    refreshHUD();
+    if (uy <= 0) end('B');
+  }
+}
+
+function crash(n) {
+  P.fall = 1.3; P.inv = 2.6;
+  uy -= n.t.crashUy; combo = 0;
+  popup('ỐI!', { x: P.x, y: 3, z: P.z }, 'bad');
+  sfx.oof();
+  shake = .7;
+  const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+  refreshHUD();
+  if (uy <= 0) end('B');
+}
+
+function dash(ax) {
+  if (state !== 'play' || paused || P.dashCd > 0 || P.fall > 0) return;
+  P.dashT = .28; P.dashCd = 1.4; P.dashDir = ax; P.inv = Math.max(P.inv, .32);
+  sfx.whiff();
+}
+
+// ───────────────────────── kết thúc ─────────────────────────
+const ENDINGS = {
+  S: { t: 'Ending S – Đệ Nhất Quý Phi', l: [['Hoàng thượng', 'Ái phi hôm nay… hình như rất có tinh thần.'], ['Quý Phi', 'Thần thiếp chỉ đi dạo một vòng hậu cung mà thôi.']] },
+  A: { t: 'Ending A – Bình An Vào Điện', l: [['Hoàng thượng', 'Ái phi đến rồi, ngồi đi.'], ['Quý Phi', 'Thần thiếp… chỉ đi dạo một chút thôi ạ.']] },
+  B: { t: 'Ending B – Hoàng Hậu Bắt Gặp', l: [['Hoàng hậu', 'Quý Phi muội muội, hôm nay đi đâu mà vội thế?'], ['Quý Phi', '…Thần thiếp chỉ đi dạo thôi ạ.']] },
+};
+function end(kind) {
+  if (state !== 'play') return;
+  state = 'end';
+  document.exitPointerLock();
+  document.body.classList.remove('hot');
+  kind === 'B' ? sfx.lose() : sfx.win();
+  setTimeout(() => {
+    const e = ENDINGS[kind];
+    $('endTitle').textContent = e.t;
+    $('endLines').innerHTML = e.l.map(([w, s]) => `<p><span class="who">${w}:</span> "${s}"</p>`).join('');
+    $('endScore').textContent = `Điểm: ${Math.round(score).toLocaleString('vi-VN')} · Uy Nghi: ${Math.round(uy)}`;
+    $('end').classList.toggle('dark', kind === 'B');
+    $('end').classList.add('show');
+  }, kind === 'B' ? 400 : 900);
+}
+
+// ───────────────────────── vòng lặp ─────────────────────────
+function update(dt) {
+  time += dt;
+  const ax = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
+  P.slapCd -= dt; P.dashCd -= dt; P.inv -= dt;
+
+  // tốc độ chạy: tăng theo combo
+  let speed = 9 + Math.min(combo, 20) * .25;
+  if (keys.has('KeyW')) speed += 3;
+  if (keys.has('KeyS')) speed -= 3;
+  let lat = ax * 8;
+  if (P.dashT > 0) { P.dashT -= dt; speed *= 1.8; lat = (P.dashDir || ax) * 20; }
+  if (P.fall > 0) { P.fall -= dt; speed = 2; lat *= .4; }
+  P.x = Math.max(-HALF, Math.min(HALF, P.x + lat * dt));
+  P.z -= speed * dt;
+
+  // hoạt ảnh người chơi
+  player.position.set(P.x, 0, P.z);
+  const u = player.userData;
+  u.rig.rotation.z = Math.sin(time * 14) * .06;
+  u.rig.position.y = Math.abs(Math.sin(time * 14)) * .1;
+  let tilt = 0;
+  if (P.fall > 0) tilt = P.fall > .4 ? Math.min(1, (1.3 - P.fall) / .15) : P.fall / .4;
+  u.rig.rotation.x = tilt * 1.4;
+  u.hat.rotation.z = P.inv > 0 ? .5 : 0;
+  u.rig.visible = !(P.inv > 0 && P.fall <= 0 && Math.floor(time * 20) % 2);
+  for (const a of [u.armL, u.armR]) { a.rotation.x = 0; a.rotation.y = 0; }
+  if (P.slapT >= 0) {
+    P.slapT += dt;
+    const k = Math.min(P.slapT / .25, 1), arm = P.slapSide > 0 ? u.armL : u.armR;
+    arm.rotation.x = Math.sin(Math.PI * Math.min(k * 1.2, 1)) * Math.PI / 2;
+    arm.rotation.y = P.slapSide * (1 - 1.3 * k);
+    if (k >= 1) P.slapT = -1;
+  }
+
+  // NPC
+  for (const n of npcs) {
+    if (n.dead) continue;
+    const dz = n.z - P.z;
+    if (!n.active) { if (dz > -55) n.active = true; else continue; }
+    if (dz > 12) { n.dead = true; scene.remove(n.mesh); continue; }
+    n.mesh.visible = true;
+    n.label.visible = showLabels;
+    const u2 = n.mesh.userData;
+    if (n.state === 'idle') {
+      n.x += n.vx * dt; n.z += n.vz * dt;
+      if (n.cross && Math.abs(n.x) > HALF + 7) { n.dead = true; scene.remove(n.mesh); continue; }
+      if (n.vx || n.vz) n.mesh.rotation.y = Math.atan2(n.vx, n.vz);
+      u2.rig.position.y = Math.abs(Math.sin(time * 9 + n.ph)) * .12;
+      u2.rig.rotation.z = Math.sin(time * 9 + n.ph) * .07;
+      n.mesh.position.set(n.x, 0, n.z);
+      if (!n.t.slap && P.inv <= 0) {
+        const dx = n.x - P.x, ddz = n.z - P.z;
+        if (Math.hypot(dx, ddz) < n.t.r * (n.t.scale > 1 ? 1 : 1) + .65) crash(n);
+      }
+    } else {
+      n.tm += dt;
+      n.x += n.dirx * 9 * dt;
+      n.mesh.rotation.y += 18 * dt;
+      const k = Math.min(n.tm / .9, 1);
+      n.mesh.position.set(n.x, Math.sin(Math.PI * k) * 1.6, n.z);
+      n.mesh.scale.setScalar(n.t.scale * (k > .7 ? 1 - (k - .7) / .3 : 1));
+      if (n.tm > .9) { n.dead = true; scene.remove(n.mesh); }
+    }
+  }
+
+  for (let i = flowers.length - 1; i >= 0; i--) {
+    const f = flowers[i];
+    f.life -= dt; f.vy -= 12 * dt;
+    f.m.position.x += f.vx * dt; f.m.position.y += f.vy * dt; f.m.position.z += f.vz * dt;
+    if (f.life <= 0) { scene.remove(f.m); flowers.splice(i, 1); }
+  }
+
+  // tiến độ + đích
+  $('pfill').style.width = Math.min(100, -P.z / LEN * 100) + '%';
+  $('pme').style.left = Math.min(100, -P.z / LEN * 100) + '%';
+  if (P.z < -LEN - 2 && state === 'play') end(uy >= 75 ? 'S' : 'A');
+}
+
+function updateCamera(dt) {
+  shake = Math.max(0, shake - dt * 1.5);
+  const d = 7.5, h = 4.2 + camPitch * 3;
+  const tx = P.x + Math.sin(camYaw) * d, tz = P.z + Math.cos(camYaw) * d;
+  camera.position.lerp(new THREE.Vector3(tx, h, tz), 1 - Math.exp(-12 * dt));
+  camera.position.x += (Math.random() - .5) * shake;
+  camera.position.y += (Math.random() - .5) * shake;
+  camera.lookAt(P.x, 1.6, P.z - 4);
+  const targetFov = 60 + Math.min(combo, 20) * .7 + (P.dashT > 0 ? 8 : 0);
+  camera.fov += (targetFov - camera.fov) * Math.min(1, 6 * dt);
+  camera.updateProjectionMatrix();
+  sun.position.set(P.x + 15, 30, P.z + 10);
+  sun.target.position.set(P.x, 0, P.z);
+}
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(.05, (now - last) / 1000);
+  last = now;
+  if (state === 'play' && !paused) update(dt);
+  else if (state === 'end') { emperor.rotation.y = Math.sin(now / 400) * .1; }
+  updateCamera(dt);
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ───────────────────────── nhập liệu ─────────────────────────
+addEventListener('keydown', e => {
+  keys.add(e.code);
+  if (e.code === 'Space') { e.preventDefault(); dash((keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0)); }
+  if (e.code === 'KeyH') showLabels = !showLabels;
+  if (e.code === 'KeyM') musicOn = !musicOn;
+});
+addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('mousedown', e => {
+  if (state !== 'play' || paused) return;
+  if (e.button === 0) slap(1); else if (e.button === 2) slap(-1);
+});
+addEventListener('mousemove', e => {
+  if (document.pointerLockElement !== renderer.domElement) return;
+  camYaw = Math.max(-.9, Math.min(.9, camYaw - e.movementX * .003));
+  camPitch = Math.max(-.3, Math.min(.8, camPitch + e.movementY * .002));
+});
+
+function lock() {
+  try { const r = renderer.domElement.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (_) {}
+}
+document.addEventListener('pointerlockchange', () => {
+  if (state !== 'play') return;
+  const locked = document.pointerLockElement === renderer.domElement;
+  paused = !locked;
+  $('pause').classList.toggle('show', paused);
+});
+$('resume').onclick = () => { lock(); paused = false; $('pause').classList.remove('show'); };
+
+// ───────────────────────── hội thoại mở màn ─────────────────────────
+const LINES = [
+  `<span class="who">Cung nữ:</span> "Nương nương! Phi tần bên Trường Xuân Cung nói người… thất sủng rồi ạ!"`,
+  `<span class="who">Quý Phi:</span> "Thất sủng?"`,
+  `<i>Quý Phi đứng dậy.</i><br><span class="who">Quý Phi:</span> "Dẫn đường."`,
+  `<h2 style="margin:0;font-size:34px">MISSION START</h2><span class="who">NHIỆM VỤ: DẠO MỘT VÒNG HẬU CUNG</span><br><small>Nhãn xanh = TÁT · nhãn đỏ = NÉ. Đến trước Hoàng Thượng với Uy Nghi ≥ 75 để đạt Ending S.</small>`,
+];
+let li = 0;
+$('dialogue').innerHTML = LINES[0];
+$('next').onclick = () => {
+  initAudio();
+  if (AC && AC.state === 'suspended') AC.resume();
+  li++;
+  if (li < LINES.length) {
+    $('dialogue').innerHTML = LINES[li];
+    if (li === LINES.length - 1) $('next').textContent = 'Bắt đầu ▶';
+  } else {
+    $('intro').classList.remove('show');
+    document.body.classList.add('playing');
+    state = 'play';
+    refreshHUD();
+    lock();
+  }
+};
+</script>
+</body>
+</html>
