@@ -16,7 +16,14 @@
   #uy { position:absolute; top:16px; left:16px; width:min(320px,40vw); font-weight:800; font-size:18px; }
   .bar { height:20px; margin-top:4px; border:3px solid #5a0f1c; border-radius:12px; background:#2b0d14; overflow:hidden; }
   #uyfill { display:block; height:100%; width:50%; background:linear-gradient(90deg,#ffca28,#ff7043); transition:width .25s; }
+  #rumor { display:block; margin-top:6px; font-size:15px; }
   #score { position:absolute; top:12px; right:20px; font-size:38px; font-weight:900; }
+  #favor { position:absolute; top:60px; right:20px; font-size:18px; font-weight:800; }
+  #day { position:absolute; top:14px; left:50%; transform:translateX(-50%); font-size:22px; font-weight:900; color:var(--gold); white-space:nowrap; }
+  #feed { position:absolute; left:16px; top:110px; width:min(380px,60vw); font-size:14px; font-weight:700; }
+  #feed div { background:rgba(40,8,16,.78); border-left:4px solid #ff80ab; padding:5px 9px; margin-bottom:5px; border-radius:6px; animation:feedIn 4.5s forwards; }
+  #feed div.ok { border-color:#69f0ae; }
+  @keyframes feedIn { 0%{opacity:0;transform:translateX(-20px)} 8%{opacity:1;transform:none} 85%{opacity:1} 100%{opacity:0} }
   #combo { position:absolute; top:76px; left:0; right:0; text-align:center; opacity:0; transition:opacity .2s; }
   #combo.on { opacity:1; }
   #cnum { display:block; font-size:54px; font-weight:900; color:var(--gold); }
@@ -38,11 +45,12 @@
 
   .pop { position:fixed; transform:translate(-50%,-50%); font-weight:900; font-size:30px; pointer-events:none; white-space:nowrap; color:var(--gold); animation:rise 1s forwards; }
   .pop.bad { color:#ff5252; }
+  .pop.ok { color:#69f0ae; font-size:24px; }
   .pop.big { font-size:46px; color:#ff80ab; }
   @keyframes rise { 0%{transform:translate(-50%,-50%) scale(.4);opacity:0} 15%{transform:translate(-50%,-70%) scale(1.3);opacity:1} 100%{transform:translate(-50%,-190%) scale(1);opacity:0} }
 
   .overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; text-align:center; padding:24px;
-    background:radial-gradient(ellipse at center,rgba(120,20,40,.92),rgba(20,4,10,.97)); z-index:10; }
+    background:radial-gradient(ellipse at center,rgba(120,20,40,.92),rgba(20,4,10,.97)); z-index:10; overflow-y:auto; }
   .overlay.show { display:flex; }
   .overlay h1 { font-size:clamp(30px,6vw,60px); margin:0 0 8px; color:var(--gold); }
   .overlay h2 { margin:0 0 16px; color:#ff80ab; }
@@ -50,6 +58,10 @@
   .who { color:var(--gold); font-weight:800; }
   button { margin-top:22px; padding:14px 38px; font-size:20px; font-weight:800; color:#5a0f1c; background:linear-gradient(#ffe082,#ffb300); border:3px solid #5a0f1c; border-radius:30px; cursor:pointer; }
   button:hover { filter:brightness(1.1); }
+  .choices { display:flex; flex-direction:column; gap:10px; margin-top:14px; width:min(580px,90vw); }
+  .choices button { margin:0; text-align:left; font-size:17px; padding:12px 20px; border-radius:16px; }
+  .choices button small { display:block; font-weight:600; font-size:13px; opacity:.75; margin-top:2px; }
+  .rumors { text-align:left; max-width:580px; margin:6px auto; padding-left:22px; font-size:16px; line-height:1.5; }
   .keys { display:grid; grid-template-columns:auto auto; gap:4px 18px; text-align:left; margin-top:14px; font-size:15px; opacity:.9; }
   .keys b { color:var(--gold); }
   #dialogue { font-size:24px; min-height:110px; }
@@ -63,11 +75,14 @@
 <div id="vignette"></div>
 <div id="flash"></div>
 <div id="hud">
-  <div id="uy" class="stroke">👑 Uy Nghi <span id="uynum"></span><div class="bar"><i id="uyfill"></i></div></div>
+  <div id="uy" class="stroke">👑 Uy Nghi <span id="uynum"></span><div class="bar"><i id="uyfill"></i></div><span id="rumor"></span></div>
+  <div id="feed"></div>
+  <div id="day" class="stroke"></div>
   <div id="score" class="stroke">0</div>
+  <div id="favor" class="stroke"></div>
   <div id="combo" class="stroke"><b id="cnum"></b><em id="ctitle"></em></div>
   <div id="prog"><i id="pfill"></i><span id="pme">👸</span><span id="pemp">🤴</span></div>
-  <div id="hint">Chuột trái/phải: tát trái/phải · A/D: lách · W/S: nhanh/chậm · Space: lướt · Chuột: xoay camera · H: nhãn · M: nhạc</div>
+  <div id="hint">Chuột trái/phải: tát · A/D: lách · W/S: nhanh/chậm · Space: lướt · Tát kẻ mang 💬 để dập tin đồn · H: nhãn · M: nhạc</div>
 </div>
 
 <div id="intro" class="overlay show">
@@ -82,6 +97,12 @@
     <span><b>Space</b></span><span>Lướt (bất tử ngắn)</span>
     <span><b>Chuột</b></span><span>Xoay camera</span>
   </div>
+</div>
+
+<div id="scene" class="overlay">
+  <h1 id="sTitle" class="stroke"></h1>
+  <div id="sBody"></div>
+  <div id="sChoices"></div>
 </div>
 
 <div id="pause" class="overlay">
@@ -110,28 +131,47 @@ const pick = a => a[Math.floor(Math.random() * a.length)];
 const inGap = (z, m = 0) => CROSS.some(c => Math.abs(z - c) < 4 + m);
 
 const TYPES = {
-  maid:     { name: 'Cung nữ',          slap: true,  score: 100, uy: 2, r: .6,  robe: 0x2ec4a6, trim: 0xffffff, hat: 'maid',     scale: 1 },
-  eunuch:   { name: 'Thái giám',        slap: true,  score: 150, uy: 3, r: .6,  robe: 0x2d4a8a, trim: 0xb0bec5, hat: 'eunuch',   scale: 1.05 },
-  consort:  { name: 'Phi tần cấp thấp', slap: true,  score: 300, uy: 4, r: .65, robe: 0x9c4dcc, trim: 0xff8fab, hat: 'consort',  scale: 1.05 },
-  queen:    { name: 'HOÀNG HẬU',        slap: false, hitUy: 15, crashUy: 25, r: 1.1, robe: 0xe6a100, trim: 0xd32f2f, hat: 'queen',    scale: 1.3 },
-  princess: { name: 'CÔNG CHÚA',        slap: false, hitUy: 10, crashUy: 10, r: .6,  robe: 0xff7eb6, trim: 0xffffff, hat: 'princess', scale: .75 },
+  maid:     { name: 'Cung nữ',          who: 'một cung nữ',   slap: true,  score: 100, uy: 2, heat: 1, r: .6,  robe: 0x2ec4a6, trim: 0xffffff, hat: 'maid',     scale: 1 },
+  eunuch:   { name: 'Thái giám',        who: 'một thái giám', slap: true,  score: 150, uy: 3, heat: 1, r: .6,  robe: 0x2d4a8a, trim: 0xb0bec5, hat: 'eunuch',   scale: 1.05 },
+  consort:  { name: 'Phi tần cấp thấp', who: 'một phi tần',   slap: true,  score: 300, uy: 4, heat: 2, r: .65, robe: 0x9c4dcc, trim: 0xff8fab, hat: 'consort',  scale: 1.05 },
+  queen:    { name: 'HOÀNG HẬU',        who: 'Hoàng Hậu',     slap: false, hitUy: 15, crashUy: 25, heat: 6, crashHeat: 3, r: 1.1, robe: 0xe6a100, trim: 0xd32f2f, hat: 'queen',    scale: 1.3 },
+  princess: { name: 'CÔNG CHÚA',        who: 'Công Chúa',     slap: false, hitUy: 10, crashUy: 10, heat: 4, crashHeat: 2, r: .6,  robe: 0xff7eb6, trim: 0xffffff, hat: 'princess', scale: .75 },
 };
 const TIERS = { 3: 'Tiểu Chủ Uy Nghi', 5: 'Quý Phi Ra Oai', 10: 'Hậu Cung Chấn Động', 20: 'Uy Chấn Lục Cung' };
 
+// mỗi ngày: màu trời, mật độ người, tốc độ đi lại
+const DAYS = [
+  { name: 'Sớm Mai',   sky: 0xbfe3f5, sun: 0xfff2cc, hemi: 1.0,  density: 1,    speed: 1 },
+  { name: 'Chính Ngọ', sky: 0xf6e3b4, sun: 0xffe0a0, hemi: 1.05, density: 1.15, speed: 1.12 },
+  { name: 'Hoàng Hôn', sky: 0xf2a98f, sun: 0xffb27a, hemi: .85,  density: 1.3,  speed: 1.25 },
+];
+const PLACES = ['Ngự Hoa Viên', 'cầu Kim Thủy', 'hành lang đỏ', 'bên ao sen', 'trước đình Vạn Xuân', 'dưới gốc hoa đào'];
+const PERKS = {
+  quat: { name: 'Quạt Ngọc',          desc: 'Tầm tát xa hơn 35%' },
+  giay: { name: 'Giày Hoa Bồn Để',    desc: 'Lướt hồi chiêu nhanh gấp đôi' },
+  lenh: { name: 'Lệnh Bài Miễn Tội',  desc: 'Mỗi ngày được tha 1 lần tát nhầm / va chạm' },
+  tram: { name: 'Trâm Vàng',          desc: 'Vào mỗi ngày với +15 Uy Nghi' },
+  khan: { name: 'Khăn Che Mặt',       desc: 'Nhân chứng phải đứng gần hơn 30% mới nhận ra nàng' },
+};
+
 // ───────────────────────── renderer / scene ─────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
+const fitRenderer = () => {
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  renderer.setSize(innerWidth, innerHeight);
+};
+fitRenderer();
 renderer.shadowMap.enabled = true;
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
-const SKY = 0xbfe3f5;
-scene.background = new THREE.Color(SKY);
-scene.fog = new THREE.Fog(SKY, 40, 130);
-const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, .1, 220);
+scene.background = new THREE.Color(DAYS[0].sky);
+scene.fog = new THREE.Fog(DAYS[0].sky, 40, 130);
+// far vừa chạm mép sương: không vẽ thứ người chơi không thấy
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, .1, 135);
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x88aa77, 1.0));
+const hemi = new THREE.HemisphereLight(0xffffff, 0x88aa77, 1.0);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2cc, 1.3);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
@@ -139,7 +179,7 @@ Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, n
 scene.add(sun, sun.target);
 
 addEventListener('resize', () => {
-  renderer.setSize(innerWidth, innerHeight);
+  fitRenderer();
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
 });
@@ -147,19 +187,39 @@ addEventListener('resize', () => {
 // ───────────────────────── helper dựng hình ─────────────────────────
 const mats = new Map();
 const mat = c => { if (!mats.has(c)) mats.set(c, new THREE.MeshLambertMaterial({ color: c })); return mats.get(c); };
-const M = (geo, c, x = 0, y = 0, z = 0) => {
-  const m = new THREE.Mesh(geo, mat(c));
+const geos = new Map();
+const geo = (key, make) => { let g = geos.get(key); if (!g) geos.set(key, g = make()); return g; };
+const M = (g, c, x = 0, y = 0, z = 0) => {
+  const m = new THREE.Mesh(g, mat(c));
   m.position.set(x, y, z);
   m.castShadow = true;
   return m;
 };
-const sph = (r, ws = 12, hs = 8) => new THREE.SphereGeometry(r, ws, hs);
-const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-const cyl = (rt, rb, h, s = 12) => new THREE.CylinderGeometry(rt, rb, h, s);
+const sph = (r, ws = 12, hs = 8) => geo(`s${r}|${ws}|${hs}`, () => new THREE.SphereGeometry(r, ws, hs));
+const box = (w, h, d) => geo(`b${w}|${h}|${d}`, () => new THREE.BoxGeometry(w, h, d));
+const cyl = (rt, rb, h, s = 12) => geo(`c${rt}|${rb}|${h}|${s}`, () => new THREE.CylinderGeometry(rt, rb, h, s));
+
+const dummy = new THREE.Object3D(), tmpColor = new THREE.Color();
+// gom vật thể tĩnh lặp lại thành 1 draw call
+function instanced(g, material, items) {
+  const im = new THREE.InstancedMesh(g, material, items.length);
+  items.forEach((it, i) => {
+    dummy.position.set(it.x, it.y, it.z);
+    dummy.rotation.set(0, it.ry || 0, 0);
+    dummy.scale.setScalar(it.s || 1);
+    dummy.updateMatrix();
+    im.setMatrixAt(i, dummy.matrix);
+    if (it.c != null) im.setColorAt(i, tmpColor.setHex(it.c));
+  });
+  im.castShadow = true;
+  im.frustumCulled = false;
+  scene.add(im);
+  return im;
+}
 
 function makeHat(kind) {
   const h = new THREE.Group();
-  const cap = c => M(new THREE.SphereGeometry(.58, 16, 10, 0, Math.PI * 2, 0, Math.PI * .42), c);
+  const cap = c => M(geo('cap', () => new THREE.SphereGeometry(.58, 16, 10, 0, Math.PI * 2, 0, Math.PI * .42)), c);
   const bun = (c, x, y) => M(sph(.2, 10, 8), c, x, y, 0);
   switch (kind) {
     case 'maid':
@@ -204,8 +264,13 @@ function makeChar(o, f = 1) {
   rig.add(M(cyl(.62, .62, .06), o.trim, 0, .05, 0));
   const head = M(sph(.55, 16, 12), skin, 0, 1.65, 0);
   rig.add(head);
-  rig.add(M(sph(.07, 8, 6), 0x222222, .18, 1.62, .5 * f), M(sph(.07, 8, 6), 0x222222, -.18, 1.62, .5 * f));
-  rig.add(M(sph(.07, 8, 6), 0xff8a80, .34, 1.5, .42 * f), M(sph(.07, 8, 6), 0xff8a80, -.34, 1.5, .42 * f));
+  // mắt + má: quá nhỏ để đổ bóng
+  const face = [
+    M(sph(.07, 8, 6), 0x222222, .18, 1.62, .5 * f), M(sph(.07, 8, 6), 0x222222, -.18, 1.62, .5 * f),
+    M(sph(.07, 8, 6), 0xff8a80, .34, 1.5, .42 * f), M(sph(.07, 8, 6), 0xff8a80, -.34, 1.5, .42 * f),
+  ];
+  for (const m of face) m.castShadow = false;
+  rig.add(...face);
   const arms = [];
   for (const s of [-1, 1]) {
     const pivot = new THREE.Group();
@@ -218,7 +283,6 @@ function makeChar(o, f = 1) {
   const hat = makeHat(o.hat);
   rig.add(hat);
   g.scale.setScalar(o.scale || 1);
-  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
   g.userData = { rig, hat, armL: arms[0], armR: arms[1] };
   return g;
 }
@@ -240,6 +304,29 @@ function labelSprite(key) {
   s.scale.set(3.2, .8, 1);
   s.renderOrder = 10;
   return s;
+}
+
+// bong bóng 💬 trên đầu kẻ đang mang tin đồn
+let bubbleMat;
+function showBubble(n) {
+  if (!bubbleMat) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.strokeStyle = '#5a0f1c'; x.lineWidth = 7;
+    x.beginPath(); x.moveTo(42, 84); x.lineTo(28, 122); x.lineTo(70, 92); x.closePath(); x.fill(); x.stroke();
+    x.beginPath(); x.ellipse(64, 54, 54, 44, 0, 0, Math.PI * 2); x.fill(); x.stroke();
+    x.fillStyle = '#d50000'; x.font = '900 64px Segoe UI, Arial'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText('!!', 64, 58);
+    bubbleMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthTest: false });
+  }
+  if (!n.bubble) {
+    n.bubble = new THREE.Sprite(bubbleMat);
+    n.bubble.scale.set(1.1, 1.1, 1);
+    n.bubble.renderOrder = 11;
+    n.mesh.add(n.bubble);
+  }
+  n.bubble.visible = true;
 }
 
 // ───────────────────────── bản đồ Ngự Hoa Viên ─────────────────────────
@@ -283,54 +370,65 @@ function buildWorld() {
   rail(prev, -LEN - 6);
 
   // đèn lồng
+  const poles = [], lamps = [];
   for (let z = -8; z > -LEN - 5; z -= 16) {
     if (inGap(z, 1)) continue;
     for (const s of [-1, 1]) {
-      scene.add(M(cyl(.07, .07, 3), 0x5d4037, s * 7.2, 1.5, z));
-      const l = M(sph(.45, 10, 8), 0xff3d3d, s * 7.2, 3.2, z);
-      l.material = new THREE.MeshLambertMaterial({ color: 0xff3d3d, emissive: 0xaa1111 });
-      scene.add(l);
+      poles.push({ x: s * 7.2, y: 1.5, z });
+      lamps.push({ x: s * 7.2, y: 3.2, z });
     }
   }
+  instanced(cyl(.07, .07, 3), mat(0x5d4037), poles);
+  instanced(sph(.45, 10, 8), new THREE.MeshLambertMaterial({ color: 0xff3d3d, emissive: 0xaa1111 }), lamps);
 
   // cây hoa mai / đào
+  const trunks = [], blooms = [];
   for (let i = 0; i < 130; i++) {
     const z = -rand(-10, LEN + 20), s = Math.random() < .5 ? -1 : 1, x = s * rand(9.5, 30);
     if (inGap(z, 6)) continue;
-    const t = new THREE.Group();
-    t.add(M(cyl(.2, .3, 2.4, 7), 0x6d4c41, 0, 1.2, 0));
-    const col = pick([0xffb7c5, 0xffb7c5, 0xff8fab, 0xffffff]);
-    t.add(M(sph(1.5, 8, 6), col, 0, 3.2, 0), M(sph(1.1, 8, 6), col, .9, 2.8, .3), M(sph(1, 8, 6), col, -.8, 3.1, -.4));
-    t.position.set(x, 0, z);
-    scene.add(t);
+    const c = pick([0xffb7c5, 0xffb7c5, 0xff8fab, 0xffffff]);
+    trunks.push({ x, y: 1.2, z });
+    blooms.push({ x, y: 3.2, z, s: 1.5, c }, { x: x + .9, y: 2.8, z: z + .3, s: 1.1, c }, { x: x - .8, y: 3.1, z: z - .4, s: 1, c });
   }
+  instanced(cyl(.2, .3, 2.4, 7), mat(0x6d4c41), trunks);
+  instanced(sph(1, 8, 6), new THREE.MeshLambertMaterial({ color: 0xffffff }), blooms);
+
   // ao sen
+  const pondMat = new THREE.MeshLambertMaterial({ color: 0x4fc3f7 });
   for (let i = 0; i < 9; i++) {
     const z = -rand(30, LEN - 20), s = Math.random() < .5 ? -1 : 1;
     if (inGap(z, 10)) continue;
-    const p = new THREE.Mesh(new THREE.CircleGeometry(rand(3, 5), 24), new THREE.MeshLambertMaterial({ color: 0x4fc3f7 }));
+    const p = new THREE.Mesh(new THREE.CircleGeometry(rand(3, 5), 24), pondMat);
     p.rotation.x = -Math.PI / 2;
     p.position.set(s * rand(14, 24), .02, z);
     scene.add(p);
   }
   // đình
+  const pillars = [], floors = [], roofs = [];
   for (let i = 0; i < 8; i++) {
     const z = -rand(20, LEN - 20), s = i % 2 ? -1 : 1, x = s * rand(13, 18);
     if (inGap(z, 12)) continue;
-    const g = new THREE.Group();
-    for (const px of [-1.8, 1.8]) for (const pz of [-1.8, 1.8]) g.add(M(cyl(.18, .18, 3, 8), 0xc62828, px, 1.5, pz));
-    g.add(M(box(4.6, .3, 4.6), 0x8d6e63, 0, .15, 0));
-    const roof = M(new THREE.ConeGeometry(3.8, 2, 4), 0xffb300, 0, 4, 0);
-    roof.rotation.y = Math.PI / 4;
-    g.add(roof);
-    g.position.set(x, 0, z);
-    scene.add(g);
+    for (const px of [-1.8, 1.8]) for (const pz of [-1.8, 1.8]) pillars.push({ x: x + px, y: 1.5, z: z + pz });
+    floors.push({ x, y: .15, z });
+    roofs.push({ x, y: 4, z, ry: Math.PI / 4 });
   }
+  instanced(cyl(.18, .18, 3, 8), mat(0xc62828), pillars);
+  instanced(box(4.6, .3, 4.6), mat(0x8d6e63), floors);
+  instanced(geo('roof', () => new THREE.ConeGeometry(3.8, 2, 4)), mat(0xffb300), roofs);
+
   // cổng Dưỡng Tâm Điện + ngai vàng
   const gz = -LEN - 6;
   for (const s of [-1, 1]) scene.add(M(cyl(.7, .8, 9, 12), 0xb71c1c, s * 8, 4.5, gz));
   scene.add(M(box(18, 1.4, 1.6), 0xb71c1c, 0, 9.5, gz), M(box(7, 1, 1.7), 0xffc107, 0, 9.5, gz));
   scene.add(M(box(16, .6, 10), 0x8d6e63, 0, .3, gz - 7), M(box(10, .6, 6), 0xffc107, 0, .9, gz - 9));
+
+  // cảnh tĩnh: tính ma trận một lần rồi thôi
+  for (const o of scene.children) {
+    if (o.isLight || o === sun.target) continue;
+    o.updateMatrixWorld(true);
+    o.traverse(c => { c.matrixAutoUpdate = false; });
+  }
+
   const emperor = makeChar({ robe: 0xffc107, trim: 0xd32f2f, hat: 'emperor', scale: 1.2 }, 1);
   emperor.position.set(0, 1.2, gz - 9);
   scene.add(emperor);
@@ -341,7 +439,17 @@ const emperor = buildWorld();
 // ───────────────────────── người chơi ─────────────────────────
 const player = makeChar({ robe: 0xd81b60, trim: 0xffc107, hat: 'player', scale: 1.1 }, -1);
 scene.add(player);
-const P = { x: 0, z: 0, fall: 0, inv: 0, dashT: 0, dashCd: 0, dashDir: 0, slapT: -1, slapSide: 1, slapCd: 0 };
+const P = { x: 0, z: 0, fall: 0, inv: 0, dashT: 0, dashCd: 0, dashDir: 0, slapT: -1, slapSide: 1, slapCd: 0, pardon: 0 };
+
+// ───────────────────────── trạng thái game ─────────────────────────
+let state = 'intro', paused = false, showLabels = true, day = 1;
+let score = 0, uy = 50, combo = 0, favor = 0, hostility = 0, shake = 0, camYaw = 0, camPitch = 0, time = 0;
+const keys = new Set();
+const rumors = [];
+const perks = new Set();
+const mult = () => combo >= 20 ? 4 : combo >= 10 ? 3 : combo >= 5 ? 2 : combo >= 3 ? 1.5 : 1;
+const witnessR = () => (7 + Math.min(hostility, 20) * .1) * (perks.has('khan') ? .7 : 1);
+const queenBonus = () => Math.min(.12, hostility * .008);
 
 // ───────────────────────── NPC ─────────────────────────
 const npcs = [];
@@ -353,11 +461,11 @@ function spawnNPC(key, x, z, o = {}) {
   mesh.add(label);
   mesh.visible = false;
   scene.add(mesh);
-  const n = { key, t, mesh, label, x, z, vx: o.vx || 0, vz: o.vz || 0, state: 'idle', tm: 0, active: false, dead: false, ph: rand(0, 6), dirx: 0, cross: !!o.cross };
+  const n = { key, t, mesh, label, x, z, vx: o.vx || 0, vz: o.vz || 0, state: 'idle', tm: 0, active: false, dead: false, ph: rand(0, 6), dirx: 0, cross: !!o.cross, rumors: [], bubble: null, fleeing: false };
   npcs.push(n);
   return n;
 }
-function behave(key, x, z) {
+function behave(key) {
   switch (key) {
     case 'maid':     return Math.random() < .6 ? { vx: pick([-1, 1]) * rand(1.6, 2.6), cross: true } : { vz: rand(.5, 1.5) };
     case 'eunuch':   return { vz: rand(1.2, 2.2) };
@@ -366,12 +474,15 @@ function behave(key, x, z) {
     case 'princess': return { vx: pick([-1, 1]) * rand(3.5, 5), cross: true };
   }
 }
-function populate() {
+function populate(d) {
+  const D = DAYS[d - 1], qb = queenBonus() + (d - 1) * .015;
   const place = (key, z) => {
     const x = rand(-HALF + .5, HALF - .5);
-    const n = spawnNPC(key, x, z, behave(key));
-    if (key === 'queen') for (const s of [-1, 1]) spawnNPC('maid', x + s * 1.8, z - 2.5, { vz: 1.5 });
-    return n;
+    const b = behave(key);
+    if (b.vx) b.vx *= D.speed;
+    if (b.vz) b.vz *= D.speed;
+    spawnNPC(key, x, z, b);
+    if (key === 'queen') for (const s of [-1, 1]) spawnNPC('maid', x + s * 1.8, z - 2.5, { vz: 1.5 * D.speed });
   };
   let z = -22, queenDone = false;
   while (z > -LEN + 15) {
@@ -380,14 +491,13 @@ function populate() {
     if (!queenDone && z < -45) { key = 'queen'; queenDone = true; }
     else if (t < .15) key = pick(['maid', 'maid', 'eunuch']);
     else {
-      const r = Math.random(), q = .07 + .1 * t, pr = .09 + .07 * t;
+      const r = Math.random(), q = .07 + .1 * t + qb, pr = .09 + .07 * t;
       key = r < q ? 'queen' : r < q + pr ? 'princess' : pick(['maid', 'maid', 'maid', 'eunuch', 'consort', 'consort']);
     }
     place(key, z);
-    z -= (15 - 9 * t) * rand(.8, 1.2);
+    z -= (15 - 9 * t) * rand(.8, 1.2) / D.density;
   }
 }
-populate();
 
 // ───────────────────────── hạt hoa mai ─────────────────────────
 const flowers = [];
@@ -402,11 +512,14 @@ function burst(x, y, z) {
 }
 
 // ───────────────────────── âm thanh ─────────────────────────
-let AC, master, musicOn = true;
+let AC, master, noiseBuf, musicOn = true;
 function initAudio() {
   if (AC) return;
   AC = new (window.AudioContext || window.webkitAudioContext)();
   master = AC.createGain(); master.gain.value = .6; master.connect(AC.destination);
+  noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   const scale = [262, 294, 330, 392, 440, 523, 587, 659];
   let step = 0;
   setInterval(() => {
@@ -426,29 +539,24 @@ function tone(f, dur, type = 'sine', vol = .2, slide = null, delay = 0) {
 }
 function noise(dur, vol, freq) {
   if (!AC) return;
-  const n = AC.sampleRate * dur, buf = AC.createBuffer(1, n, AC.sampleRate), d = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
   const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
-  s.buffer = buf; f.type = 'bandpass'; f.frequency.value = freq;
+  s.buffer = noiseBuf; f.type = 'bandpass'; f.frequency.value = freq;
   g.gain.setValueAtTime(vol, AC.currentTime); g.gain.exponentialRampToValueAtTime(.001, AC.currentTime + dur);
-  s.connect(f); f.connect(g); g.connect(master); s.start();
+  s.connect(f); f.connect(g); g.connect(master); s.start(0, Math.random() * (1 - dur), dur);
 }
 const sfx = {
   slap()   { noise(.09, .7, 1800); tone(170, .13, 'square', .25, 60); },
   whiff()  { noise(.14, .12, 3200); },
   scream() { tone(rand(800, 1100), .3, 'square', .1, rand(1300, 1800)); },
   oof()    { tone(420, .4, 'sawtooth', .28, 110); noise(.2, .3, 400); },
+  gossip() { tone(1250, .06, 'square', .05); tone(1550, .06, 'square', .05, null, .08); tone(1250, .06, 'square', .05, null, .16); },
+  hush()   { tone(900, .3, 'sine', .18, 280); },
   tier()   { [523, 659, 784, 1047].forEach((f, i) => tone(f, .22, 'triangle', .22, null, i * .08)); },
   win()    { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, .35, 'triangle', .22, null, i * .12)); },
   lose()   { [392, 330, 262, 196].forEach((f, i) => tone(f, .4, 'sawtooth', .18, null, i * .18)); },
 };
 
-// ───────────────────────── trạng thái game ─────────────────────────
-let state = 'intro', paused = false, showLabels = true;
-let score = 0, uy = 50, combo = 0, shake = 0, camYaw = 0, camPitch = 0, time = 0;
-const keys = new Set();
-const mult = () => combo >= 20 ? 4 : combo >= 10 ? 3 : combo >= 5 ? 2 : combo >= 3 ? 1.5 : 1;
-
+// ───────────────────────── HUD ─────────────────────────
 function popup(text, pos, cls = '') {
   const v = new THREE.Vector3(pos.x, pos.y, pos.z).project(camera);
   if (v.z > 1) return;
@@ -468,12 +576,22 @@ function centerPop(text, cls = 'big') {
   document.body.appendChild(d);
   setTimeout(() => d.remove(), 1000);
 }
+function feed(text, cls = '') {
+  const f = $('feed'), d = document.createElement('div');
+  d.className = cls;
+  d.textContent = text;
+  f.prepend(d);
+  while (f.children.length > 4) f.lastChild.remove();
+  setTimeout(() => d.remove(), 4500);
+}
 
 function refreshHUD() {
   uy = Math.max(0, Math.min(100, uy));
   $('uyfill').style.width = uy + '%';
   $('uynum').textContent = Math.round(uy);
   $('score').textContent = Math.round(score).toLocaleString('vi-VN');
+  $('favor').textContent = '💗 Ân sủng ' + favor + (P.pardon ? ' · 📜' : '');
+  $('day').textContent = `Ngày ${day}/${DAYS.length} · ${DAYS[day - 1].name}`;
   const c = $('combo');
   c.classList.toggle('on', combo > 0);
   $('cnum').textContent = 'COMBO x' + combo;
@@ -482,18 +600,90 @@ function refreshHUD() {
   c.classList.remove('pulse'); void c.offsetWidth; c.classList.add('pulse');
   document.body.classList.toggle('hot', combo >= 10);
 }
+function refreshRumors() {
+  const today = rumors.filter(r => r.day === day);
+  const n = s => today.filter(r => r.status === s).length;
+  $('rumor').textContent = `🗣 Tin đồn: ${n('spread')} lan · ${n('pending')} chờ · ${n('squashed')} dập`;
+}
 
-function breakCombo() { combo = 0; refreshHUD(); }
+// ───────────────────────── tin đồn ─────────────────────────
+function addRumor(v, kind) {
+  const who = v.t.who, place = pick(PLACES);
+  const text = kind === 'slap' ? `Quý Phi tát ${who} ở ${place}`
+    : kind === 'mistake' ? `Quý Phi dám tát ${who} ở ${place}!`
+    : `Quý Phi tông sầm vào ${who} ở ${place}`;
+  const r = { text, kind, day, heat: kind === 'crash' ? v.t.crashHeat : v.t.heat, pending: 0, status: 'pending' };
+  rumors.push(r);
+  // tát nhầm / va chạm: chính nạn nhân sẽ đi kể, không dập được
+  if (kind !== 'slap') spread(r);
+  return r;
+}
+function spread(r) {
+  if (r.status !== 'pending') return;
+  r.status = 'spread';
+  hostility += r.heat;
+  feed('🗣 ' + r.text);
+  sfx.gossip();
+  refreshRumors();
+}
+// nhân chứng bị tát trước khi kịp kể
+function silence(n) {
+  for (const r of n.rumors) {
+    if (r.status !== 'pending' || --r.pending > 0) continue;
+    r.status = 'squashed';
+    score += 200; uy += 3;
+    feed('🤐 Dập tin: ' + r.text, 'ok');
+    popup('DẬP TIN ĐỒN! +200', { x: n.x, y: 4.2, z: n.z }, 'ok');
+    sfx.hush();
+  }
+  n.rumors = [];
+  if (n.bubble) n.bubble.visible = false;
+  refreshRumors();
+}
+function witness(v) {
+  const R = witnessR(), pos = { x: v.x, y: 3.4, z: v.z };
+  const eyes = npcs.filter(m => m.active && !m.dead && m.state === 'idle' && Math.hypot(m.x - v.x, m.z - v.z) < R);
+  if (!eyes.length) { score += 50; popup('Không ai thấy 🤫 +50', pos, 'ok'); return; }
+  const r = addRumor(v, 'slap');
+  for (const m of eyes) {
+    m.rumors.push(r); r.pending++;
+    if (m.key === 'queen') r.heat += 2;
+    // kẻ tát được thì bỏ chạy ra khỏi lối đi để đi kể
+    if (m.t.slap && !m.fleeing) {
+      m.fleeing = m.cross = true;
+      m.vx = (Math.sign(m.x - P.x) || 1) * 3.2 * DAYS[day - 1].speed;
+    }
+    showBubble(m);
+  }
+  popup(`👀 ${eyes.length} người thấy`, pos, 'bad');
+  refreshRumors();
+}
+// NPC rời khỏi cảnh: còn mang tin đồn thì tin đồn lan ra
+function removeNPC(n) {
+  n.dead = true;
+  scene.remove(n.mesh);
+  for (const r of n.rumors) spread(r);
+  n.rumors = [];
+}
+function pardon() {
+  if (P.pardon <= 0) return false;
+  P.pardon--;
+  centerPop('MIỄN TỘI! 📜');
+  refreshHUD();
+  return true;
+}
 
+// ───────────────────────── hành động ─────────────────────────
 function slap(side) {
   if (state !== 'play' || paused || P.slapCd > 0 || P.fall > 0) return;
   P.slapT = 0; P.slapSide = side; P.slapCd = .35;
+  const k = perks.has('quat') ? 1.35 : 1;
   let hit = false;
   for (const n of npcs) {
     if (n.dead || n.state !== 'idle' || !n.active) continue;
     const dz = n.z - P.z, dx = n.x - P.x;
-    const inZ = dz > -3.8 && dz < 1;
-    const inX = side > 0 ? (dx < .4 && dx > -3.6) : (dx > -.4 && dx < 3.6);
+    const inZ = dz > -3.8 * k && dz < 1;
+    const inX = side > 0 ? (dx < .4 && dx > -3.6 * k) : (dx > -.4 && dx < 3.6 * k);
     if (inZ && inX) { hitNPC(n, side); hit = true; }
   }
   if (!hit) sfx.whiff();
@@ -512,11 +702,15 @@ function hitNPC(n, side) {
     popup('CHÁT! +' + pts, p);
     if (n.key === 'maid') sfx.scream();
     if (TIERS[combo]) { centerPop(TIERS[combo]); sfx.tier(); shake = .5; }
+    silence(n);
+    witness(n);
     refreshHUD();
   } else {
+    if (pardon()) return;
     uy -= n.t.hitUy; combo = 0;
     popup('TÁT NHẦM!', p, 'bad');
     sfx.oof();
+    addRumor(n, 'mistake');
     refreshHUD();
     if (uy <= 0) end('B');
   }
@@ -524,44 +718,161 @@ function hitNPC(n, side) {
 
 function crash(n) {
   P.fall = 1.3; P.inv = 2.6;
-  uy -= n.t.crashUy; combo = 0;
-  popup('ỐI!', { x: P.x, y: 3, z: P.z }, 'bad');
   sfx.oof();
   shake = .7;
   const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+  if (pardon()) return;
+  uy -= n.t.crashUy; combo = 0;
+  popup('ỐI!', { x: P.x, y: 3, z: P.z }, 'bad');
+  addRumor(n, 'crash');
   refreshHUD();
   if (uy <= 0) end('B');
 }
 
 function dash(ax) {
   if (state !== 'play' || paused || P.dashCd > 0 || P.fall > 0) return;
-  P.dashT = .28; P.dashCd = 1.4; P.dashDir = ax; P.inv = Math.max(P.inv, .32);
+  P.dashT = .28; P.dashCd = perks.has('giay') ? .7 : 1.4; P.dashDir = ax; P.inv = Math.max(P.inv, .32);
   sfx.whiff();
+}
+
+// ───────────────────────── chuỗi ngày ─────────────────────────
+function setupDay(d) {
+  for (const n of npcs) scene.remove(n.mesh);
+  npcs.length = 0;
+  for (const f of flowers) scene.remove(f.m);
+  flowers.length = 0;
+  Object.assign(P, { x: 0, z: 0, fall: 0, inv: 0, dashT: 0, dashCd: 0, dashDir: 0, slapT: -1, slapSide: 1, slapCd: 0, pardon: perks.has('lenh') ? 1 : 0 });
+  uy = 50 + (perks.has('tram') ? 15 : 0);
+  combo = 0; shake = 0; camYaw = camPitch = 0;
+  const D = DAYS[d - 1];
+  scene.background.setHex(D.sky);
+  scene.fog.color.setHex(D.sky);
+  sun.color.setHex(D.sun);
+  hemi.intensity = D.hemi;
+  player.position.set(0, 0, 0);
+  camera.position.set(0, 4.2, 7.5);
+  populate(d);
+}
+
+function showScene(title, html, buttons) {
+  $('sTitle').textContent = title;
+  $('sBody').innerHTML = html;
+  const wrap = $('sChoices');
+  wrap.innerHTML = '';
+  wrap.className = buttons.length > 1 ? 'choices' : '';
+  for (const b of buttons) {
+    const el = document.createElement('button');
+    el.innerHTML = b.label + (b.sub ? `<small>${b.sub}</small>` : '');
+    el.onclick = b.on;
+    wrap.append(el);
+  }
+  $('scene').classList.add('show');
+}
+
+function beginDay() {
+  $('scene').classList.remove('show');
+  document.body.classList.add('playing');
+  state = 'play';
+  refreshHUD();
+  refreshRumors();
+  lock();
+}
+
+function dayDone() {
+  state = 'night';
+  document.exitPointerLock();
+  document.body.classList.remove('hot', 'playing');
+  // nhân chứng còn sống sót đều đã kịp đi kể
+  for (const r of rumors) if (r.day === day) spread(r);
+  sfx.win();
+  setTimeout(nightScene, 900);
+}
+
+function nightScene() {
+  const today = rumors.filter(r => r.day === day);
+  const told = today.filter(r => r.status === 'spread').sort((a, b) => b.heat - a.heat);
+  const heat = told.reduce((s, r) => s + r.heat, 0);
+  const sins = told.filter(r => r.kind !== 'slap').length;
+  const squashed = today.filter(r => r.status === 'squashed').length;
+  const line = told.length
+    ? `Trẫm nghe nói… <i>${told[0].text}</i>. Ái phi giải thích thế nào?`
+    : 'Hôm nay hậu cung yên ắng lạ thường. Ái phi đi đâu cả ngày vậy?';
+  const list = told.slice(0, 3).map(r => `<li>${r.text} <small>(🔥${r.heat})</small></li>`).join('');
+  const choices = [
+    { label: '“Thần thiếp chỉ đi dạo một chút thôi ạ.”', sub: 'Hiệu nghiệm khi tin đồn còn ít',
+      res: () => heat <= 4 ? [2, 'Ừm… đi dạo tốt cho sức khỏe. Lại đây ngồi với trẫm.'] : [-1, `Đi dạo mà cả hậu cung đều biết sao? (🔥${heat})`] },
+    { label: '“Là bọn họ vô lễ với thần thiếp trước!”', sub: 'Hiệu nghiệm nếu chưa đụng tới Hoàng Hậu / Công Chúa',
+      res: () => !heat ? [0, 'Vô lễ? Trẫm có nghe ai nói gì đâu.'] : sins ? [-2, 'Hoàng Hậu và Công Chúa cũng vô lễ với nàng sao?!'] : [2, 'Ái phi chịu ủy khuất rồi. Để trẫm xem kẻ nào to gan.'] },
+    { label: '“Thần thiếp nhớ Hoàng thượng nên mới vội đến…”', sub: 'Cần Uy Nghi ≥ 60',
+      res: () => uy >= 60 ? [1, 'Ha ha, trẫm biết ngay mà.'] : [0, 'Nhìn nàng mệt mỏi thế kia… thôi, nghỉ sớm đi.'] },
+  ];
+  showScene(`Đêm Thị Tẩm · Ngày ${day}/${DAYS.length}`,
+    `<p><span class="who">Hoàng thượng:</span> "${line}"</p>` +
+    (list ? `<ul class="rumors">${list}</ul>` : '') +
+    `<p><small>Tin đồn lan: ${told.length} · Đã dập: ${squashed} · Uy Nghi: ${Math.round(uy)}</small></p>`,
+    choices.map(c => ({ label: c.label, sub: c.sub, on: () => {
+      const [d, reply] = c.res();
+      favor += d;
+      const last = day === DAYS.length;
+      showScene(d > 0 ? 'Long Nhan Đại Duyệt' : d < 0 ? 'Long Nhan Bất Duyệt' : 'Hoàng Thượng Trầm Ngâm',
+        `<p><span class="who">Hoàng thượng:</span> "${reply}"</p><h2>Ân sủng ${d >= 0 ? '+' : ''}${d} → 💗 ${favor}</h2>`,
+        [{ label: last ? 'Xem kết cục ▶' : d > 0 ? 'Nhận ban thưởng ▶' : 'Sang ngày mới ▶', on: last ? finale : d > 0 ? perkScene : nextDay }]);
+    } })));
+}
+
+function perkScene() {
+  const pool = Object.keys(PERKS).filter(k => !perks.has(k)).sort(() => Math.random() - .5).slice(0, 3);
+  if (!pool.length) return nextDay();
+  showScene('Hoàng Thượng Ban Thưởng', '<p>Chọn một món ban thưởng:</p>',
+    pool.map(k => ({ label: '🎁 ' + PERKS[k].name, sub: PERKS[k].desc, on: () => { perks.add(k); nextDay(); } })));
+}
+
+function nextDay() {
+  day++;
+  setupDay(day);
+  const qb = Math.round(queenBonus() * 100);
+  showScene(`Ngày ${day}/${DAYS.length} · ${DAYS[day - 1].name}`,
+    `<p>Tin đồn đã lan khắp lục cung (🔥 tổng ${hostility}).</p>` +
+    `<p>${qb ? `Phe Hoàng Hậu tăng cường tuần tra: <b>+${qb}%</b> khả năng chạm mặt Hoàng Hậu.` : 'Phe Hoàng Hậu vẫn chưa để ý tới nàng.'}</p>` +
+    `<p>Tai mắt hậu cung nhìn xa <b>${witnessR().toFixed(1)}</b> bước. Người qua lại đông hơn, nhanh hơn.</p>` +
+    (perks.size ? `<p>Ban thưởng: ${[...perks].map(k => PERKS[k].name).join(' · ')}</p>` : ''),
+    [{ label: 'Bắt đầu ▶', on: beginDay }]);
+}
+
+function finale() {
+  end(favor >= 5 ? (hostility > 12 ? 'Y' : 'S') : favor <= 1 ? 'L' : 'A');
 }
 
 // ───────────────────────── kết thúc ─────────────────────────
 const ENDINGS = {
-  S: { t: 'Ending S – Đệ Nhất Quý Phi', l: [['Hoàng thượng', 'Ái phi hôm nay… hình như rất có tinh thần.'], ['Quý Phi', 'Thần thiếp chỉ đi dạo một vòng hậu cung mà thôi.']] },
+  S: { t: 'Ending S – Đệ Nhất Quý Phi', l: [['Hoàng thượng', 'Ái phi vừa dịu dàng vừa có uy, hậu cung nhờ nàng mà yên ổn.'], ['Quý Phi', 'Thần thiếp chỉ đi dạo vài vòng hậu cung mà thôi.']] },
+  Y: { t: 'Ending Ẩn – Yêu Phi Danh Chấn Lục Cung', l: [['Hoàng thượng', 'Cả hậu cung đều sợ nàng… trẫm lại càng thích.'], ['Hoàng hậu', '(nghiến răng) …Muội muội giỏi lắm.']] },
   A: { t: 'Ending A – Bình An Vào Điện', l: [['Hoàng thượng', 'Ái phi đến rồi, ngồi đi.'], ['Quý Phi', 'Thần thiếp… chỉ đi dạo một chút thôi ạ.']] },
+  L: { t: 'Ending C – Lãnh Cung Thu Phong', l: [['Thái giám', 'Nương nương, Lãnh Cung… đã dọn sẵn rồi ạ.'], ['Quý Phi', 'Thần thiếp… chỉ đi dạo thôi mà.']] },
   B: { t: 'Ending B – Hoàng Hậu Bắt Gặp', l: [['Hoàng hậu', 'Quý Phi muội muội, hôm nay đi đâu mà vội thế?'], ['Quý Phi', '…Thần thiếp chỉ đi dạo thôi ạ.']] },
 };
 function end(kind) {
-  if (state !== 'play') return;
+  if (state === 'end') return;
   state = 'end';
   document.exitPointerLock();
   document.body.classList.remove('hot');
-  kind === 'B' ? sfx.lose() : sfx.win();
+  $('scene').classList.remove('show');
+  kind === 'B' || kind === 'L' ? sfx.lose() : sfx.win();
+  const told = rumors.filter(r => r.status === 'spread').length, hushed = rumors.filter(r => r.status === 'squashed').length;
   setTimeout(() => {
     const e = ENDINGS[kind];
     $('endTitle').textContent = e.t;
-    $('endLines').innerHTML = e.l.map(([w, s]) => `<p><span class="who">${w}:</span> "${s}"</p>`).join('');
-    $('endScore').textContent = `Điểm: ${Math.round(score).toLocaleString('vi-VN')} · Uy Nghi: ${Math.round(uy)}`;
-    $('end').classList.toggle('dark', kind === 'B');
+    $('endLines').innerHTML = e.l.map(([w, s]) => `<p><span class="who">${w}:</span> "${s}"</p>`).join('') +
+      `<p><small>Ngày ${day}/${DAYS.length} · 💗 Ân sủng ${favor} · Tin đồn lan ${told} / dập ${hushed}</small></p>`;
+    $('endScore').textContent = `Điểm: ${Math.round(score).toLocaleString('vi-VN')}`;
+    $('end').classList.toggle('dark', kind === 'B' || kind === 'L');
     $('end').classList.add('show');
-  }, kind === 'B' ? 400 : 900);
+  }, kind === 'B' ? 400 : 300);
 }
 
 // ───────────────────────── vòng lặp ─────────────────────────
+const pfill = $('pfill'), pme = $('pme');
+let lastPct = -1;
 function update(dt) {
   time += dt;
   const ax = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
@@ -601,21 +912,20 @@ function update(dt) {
     if (n.dead) continue;
     const dz = n.z - P.z;
     if (!n.active) { if (dz > -55) n.active = true; else continue; }
-    if (dz > 12) { n.dead = true; scene.remove(n.mesh); continue; }
+    if (dz > 12) { removeNPC(n); continue; }
     n.mesh.visible = true;
     n.label.visible = showLabels;
+    if (n.bubble && n.bubble.visible) n.bubble.position.y = 3.8 + Math.sin(time * 10 + n.ph) * .12;
     const u2 = n.mesh.userData;
     if (n.state === 'idle') {
       n.x += n.vx * dt; n.z += n.vz * dt;
-      if (n.cross && Math.abs(n.x) > HALF + 7) { n.dead = true; scene.remove(n.mesh); continue; }
+      if (n.cross && Math.abs(n.x) > HALF + 7) { removeNPC(n); continue; }
       if (n.vx || n.vz) n.mesh.rotation.y = Math.atan2(n.vx, n.vz);
-      u2.rig.position.y = Math.abs(Math.sin(time * 9 + n.ph)) * .12;
-      u2.rig.rotation.z = Math.sin(time * 9 + n.ph) * .07;
+      const sp = n.fleeing ? 16 : 9;
+      u2.rig.position.y = Math.abs(Math.sin(time * sp + n.ph)) * .12;
+      u2.rig.rotation.z = Math.sin(time * sp + n.ph) * .07;
       n.mesh.position.set(n.x, 0, n.z);
-      if (!n.t.slap && P.inv <= 0) {
-        const dx = n.x - P.x, ddz = n.z - P.z;
-        if (Math.hypot(dx, ddz) < n.t.r * (n.t.scale > 1 ? 1 : 1) + .65) crash(n);
-      }
+      if (!n.t.slap && P.inv <= 0 && Math.hypot(n.x - P.x, n.z - P.z) < n.t.r + .65) crash(n);
     } else {
       n.tm += dt;
       n.x += n.dirx * 9 * dt;
@@ -623,8 +933,9 @@ function update(dt) {
       const k = Math.min(n.tm / .9, 1);
       n.mesh.position.set(n.x, Math.sin(Math.PI * k) * 1.6, n.z);
       n.mesh.scale.setScalar(n.t.scale * (k > .7 ? 1 - (k - .7) / .3 : 1));
-      if (n.tm > .9) { n.dead = true; scene.remove(n.mesh); }
+      if (n.tm > .9) removeNPC(n);
     }
+    if (state !== 'play') return;
   }
 
   for (let i = flowers.length - 1; i >= 0; i--) {
@@ -635,16 +946,17 @@ function update(dt) {
   }
 
   // tiến độ + đích
-  $('pfill').style.width = Math.min(100, -P.z / LEN * 100) + '%';
-  $('pme').style.left = Math.min(100, -P.z / LEN * 100) + '%';
-  if (P.z < -LEN - 2 && state === 'play') end(uy >= 75 ? 'S' : 'A');
+  const pct = Math.min(100, Math.round(-P.z / LEN * 500) / 5);
+  if (pct !== lastPct) { lastPct = pct; pfill.style.width = pme.style.left = pct + '%'; }
+  if (P.z < -LEN - 2) dayDone();
 }
 
+const camTarget = new THREE.Vector3();
 function updateCamera(dt) {
   shake = Math.max(0, shake - dt * 1.5);
   const d = 7.5, h = 4.2 + camPitch * 3;
-  const tx = P.x + Math.sin(camYaw) * d, tz = P.z + Math.cos(camYaw) * d;
-  camera.position.lerp(new THREE.Vector3(tx, h, tz), 1 - Math.exp(-12 * dt));
+  camTarget.set(P.x + Math.sin(camYaw) * d, h, P.z + Math.cos(camYaw) * d);
+  camera.position.lerp(camTarget, 1 - Math.exp(-12 * dt));
   camera.position.x += (Math.random() - .5) * shake;
   camera.position.y += (Math.random() - .5) * shake;
   camera.lookAt(P.x, 1.6, P.z - 4);
@@ -660,11 +972,12 @@ function loop(now) {
   const dt = Math.min(.05, (now - last) / 1000);
   last = now;
   if (state === 'play' && !paused) update(dt);
-  else if (state === 'end') { emperor.rotation.y = Math.sin(now / 400) * .1; }
+  else if (state !== 'intro') emperor.rotation.y = Math.sin(now / 400) * .1;
   updateCamera(dt);
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
+setupDay(1);
 requestAnimationFrame(loop);
 
 // ───────────────────────── nhập liệu ─────────────────────────
@@ -701,8 +1014,8 @@ $('resume').onclick = () => { lock(); paused = false; $('pause').classList.remov
 const LINES = [
   `<span class="who">Cung nữ:</span> "Nương nương! Phi tần bên Trường Xuân Cung nói người… thất sủng rồi ạ!"`,
   `<span class="who">Quý Phi:</span> "Thất sủng?"`,
-  `<i>Quý Phi đứng dậy.</i><br><span class="who">Quý Phi:</span> "Dẫn đường."`,
-  `<h2 style="margin:0;font-size:34px">MISSION START</h2><span class="who">NHIỆM VỤ: DẠO MỘT VÒNG HẬU CUNG</span><br><small>Nhãn xanh = TÁT · nhãn đỏ = NÉ. Đến trước Hoàng Thượng với Uy Nghi ≥ 75 để đạt Ending S.</small>`,
+  `<i>Quý Phi đứng dậy.</i><br><span class="who">Quý Phi:</span> "Ba ngày. Bổn cung cho cả hậu cung ba ngày để nhớ lại ai mới là người được sủng ái."`,
+  `<h2 style="margin:0;font-size:34px">BA NGÀY TRANH SỦNG</h2><small>Nhãn xanh = TÁT · nhãn đỏ = NÉ.<br>Tát trước mặt người khác sẽ thành <b>tin đồn</b>: tát kẻ mang 💬 trước khi họ chạy mất để dập tin.<br>Mỗi tối, Hoàng Thượng sẽ hỏi chuyện. Giữ ân sủng để đạt kết cục tốt nhất.</small>`,
 ];
 let li = 0;
 $('dialogue').innerHTML = LINES[0];
@@ -715,10 +1028,7 @@ $('next').onclick = () => {
     if (li === LINES.length - 1) $('next').textContent = 'Bắt đầu ▶';
   } else {
     $('intro').classList.remove('show');
-    document.body.classList.add('playing');
-    state = 'play';
-    refreshHUD();
-    lock();
+    beginDay();
   }
 };
 </script>
