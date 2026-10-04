@@ -259,18 +259,14 @@ function makeChar(o, f = 1) {
   const rig = new THREE.Group();
   g.add(rig);
   const skin = 0xffe0bd;
-  rig.add(M(cyl(.35, .6, 1.2), o.robe, 0, .6, 0));
+  const robe = M(cyl(.35, .6, 1.2), o.robe, 0, .6, 0);
+  rig.add(robe);
   rig.add(M(cyl(.46, .48, .12), o.trim, 0, .85, 0));
   rig.add(M(cyl(.62, .62, .06), o.trim, 0, .05, 0));
   const head = M(sph(.55, 16, 12), skin, 0, 1.65, 0);
   rig.add(head);
-  // mắt + má: quá nhỏ để đổ bóng
-  const face = [
-    M(sph(.07, 8, 6), 0x222222, .18, 1.62, .5 * f), M(sph(.07, 8, 6), 0x222222, -.18, 1.62, .5 * f),
-    M(sph(.07, 8, 6), 0xff8a80, .34, 1.5, .42 * f), M(sph(.07, 8, 6), 0xff8a80, -.34, 1.5, .42 * f),
-  ];
-  for (const m of face) m.castShadow = false;
-  rig.add(...face);
+  rig.add(M(sph(.07, 8, 6), 0x222222, .18, 1.62, .5 * f), M(sph(.07, 8, 6), 0x222222, -.18, 1.62, .5 * f));
+  rig.add(M(sph(.07, 8, 6), 0xff8a80, .34, 1.5, .42 * f), M(sph(.07, 8, 6), 0xff8a80, -.34, 1.5, .42 * f));
   const arms = [];
   for (const s of [-1, 1]) {
     const pivot = new THREE.Group();
@@ -283,6 +279,8 @@ function makeChar(o, f = 1) {
   const hat = makeHat(o.hat);
   rig.add(hat);
   g.scale.setScalar(o.scale || 1);
+  // chỉ thân + đầu đổ bóng: bóng nhìn như cũ, lượt vẽ bóng giảm ~10 lần
+  g.traverse(m => { if (m.isMesh) m.castShadow = m === robe || m === head; });
   g.userData = { rig, hat, armL: arms[0], armR: arms[1] };
   return g;
 }
@@ -795,7 +793,7 @@ function nightScene() {
   const sins = told.filter(r => r.kind !== 'slap').length;
   const squashed = today.filter(r => r.status === 'squashed').length;
   const line = told.length
-    ? `Trẫm nghe nói… <i>${told[0].text}</i>. Ái phi giải thích thế nào?`
+    ? `Trẫm nghe nói… <i>${told[0].text.replace(/!$/, '')}</i>. Ái phi giải thích thế nào?`
     : 'Hôm nay hậu cung yên ắng lạ thường. Ái phi đi đâu cả ngày vậy?';
   const list = told.slice(0, 3).map(r => `<li>${r.text} <small>(🔥${r.heat})</small></li>`).join('');
   const choices = [
